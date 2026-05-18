@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kushals — Weekly Shortage Tracker</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f9; color: #1a1a2e; font-size: 13px; }
+
+/* ── UPLOAD SCREEN ── */
+#upload-screen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+}
+.upload-card {
+  background: #fff; border-radius: 16px; padding: 36px 44px; width: 480px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.brand { font-size: 26px; font-weight: 800; color: #0f3460; letter-spacing: -0.5px; }
+.brand-sub { font-size: 11px; color: #a0aec0; margin-bottom: 24px; }
+.card-title { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 20px; border-bottom: 1px solid #f0f4f8; padding-bottom: 12px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field { margin-bottom: 14px; }
+.field label { font-size: 10px; font-weight: 700; color: #4a5568; text-transform: uppercase; letter-spacing: 0.4px; display: block; margin-bottom: 5px; }
+.field select, .field input[type=text] {
+  width: 100%; height: 36px; padding: 0 10px; border: 1.5px solid #e2e8f0;
+  border-radius: 7px; font-size: 12px; color: #1a202c; background: #f7fafc; outline: none;
+}
+.field select:focus, .field input[type=text]:focus { border-color: #0f3460; background: #fff; }
+.file-drop {
+  border: 2px dashed #cbd5e0; border-radius: 10px; padding: 24px 16px;
+  cursor: pointer; transition: all .18s; background: #f7fafc; text-align: center; margin-bottom: 14px;
+}
+.file-drop:hover { border-color: #0f3460; background: #ebf4ff; }
+.file-drop.has-file { border-color: #38a169; background: #f0fff4; }
+.drop-icon { font-size: 28px; margin-bottom: 6px; }
+.drop-txt { font-size: 13px; color: #4a5568; font-weight: 600; }
+.drop-sub { font-size: 11px; color: #a0aec0; margin-top: 3px; }
+#file-input { display: none; }
+.btn-go {
+  width: 100%; height: 40px; background: #0f3460; color: #fff; border: none;
+  border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.btn-go:disabled { background: #cbd5e0; cursor: not-allowed; }
+.btn-go:not(:disabled):hover { background: #1a4a80; }
+.err { color: #c53030; font-size: 11px; background: #fff5f5; padding: 7px 10px; border-radius: 6px; margin-top: 10px; display: none; }
+.note { font-size: 10px; color: #a0aec0; margin-top: 10px; text-align: center; }
+
+/* ── LOADING ── */
+#loading { position: fixed; inset: 0; background: rgba(26,26,46,.88); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 999; color: #fff; gap: 14px; }
+.spin { width: 36px; height: 36px; border: 4px solid rgba(255,255,255,.2); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── APP ── */
+#app { display: none; }
+
+.header { background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%); color: #fff; padding: 13px 22px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.header h1 { font-size: 16px; font-weight: 700; }
+.header p  { font-size: 11px; color: #90afc0; margin-top: 2px; }
+.hstats { display: flex; gap: 16px; align-items: center; }
+.hs { text-align: center; }
+.hs .v { font-size: 20px; font-weight: 700; }
+.hs .l { font-size: 10px; color: #718096; }
+.hs.red .v  { color: #fc8181; }
+.hs.amb .v  { color: #fbd38d; }
+.btn-new { font-size: 11px; background: rgba(255,255,255,.12); color: #e2e8f0; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+.btn-new:hover { background: rgba(255,255,255,.22); }
+
+/* CONTROLS */
+.controls { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 8px 18px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.controls label { font-size: 11px; color: #4a5568; font-weight: 600; }
+.controls select, .controls input { font-size: 12px; padding: 3px 8px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f7fafc; color: #1a202c; outline: none; height: 28px; }
+.sep { color: #e2e8f0; font-size: 16px; }
+.pill { font-size: 11px; padding: 3px 11px; border-radius: 20px; border: 1px solid #e2e8f0; cursor: pointer; background: #fff; }
+.pill.on { background: #c53030; color: #fff; border-color: #c53030; }
+
+/* TABS */
+.tabs { background: #fff; border-bottom: 2px solid #e2e8f0; display: flex; padding: 0 18px; overflow-x: auto; }
+.tab { padding: 9px 16px; font-size: 12px; font-weight: 600; color: #718096; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+.tab.on { color: #c53030; border-bottom-color: #c53030; }
+
+/* TABLE */
+.twrap { padding: 14px 18px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 5px rgba(0,0,0,.07); }
+thead tr { background: #1a1a2e; color: #e2e8f0; }
+th { padding: 9px 9px; text-align: center; font-size: 11px; font-weight: 600; white-space: nowrap; }
+th.L { text-align: left; }
+td { padding: 7px 9px; text-align: center; font-size: 12px; border-bottom: 1px solid #f0f4f8; white-space: nowrap; }
+td.L { text-align: left; }
+td.store { font-weight: 600; color: #1a202c; min-width: 190px; }
+td.meta  { color: #718096; font-size: 11px; min-width: 90px; }
+tbody tr:hover td { background: #fef2f2; }
+tbody tr:last-child td { border-bottom: none; }
+.spike-row td { background: #fff5f5 !important; }
+.spike-row:hover td { background: #ffe8e8 !important; }
+
+/* VALUE CELLS */
+.neg  { color: #c53030; font-weight: 700; }
+.zero { color: #276749; }
+.nodata { color: #cbd5e0; font-size: 11px; }
+.audit-b { background: #fefcbf; color: #744210; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 4px; }
+.notrcv-b{ background: #fed7d7; color: #742a2a; font-size: 10px; font-weight: 600; padding: 2px 5px; border-radius: 4px; }
+.cum-neg { color: #c53030; font-weight: 700; }
+.cum-ok  { color: #276749; font-weight: 600; }
+
+/* WOW — only spikes shown, no improvement */
+.spike-big { background: #c53030; color: #fff;     font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+.spike-med { background: #fff0f0; color: #c53030; border: 1px solid #fca5a5; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.spike-low { color: #e53e3e; font-size: 11px; font-weight: 600; }
+
+/* MINI BAR */
+.bar     { height: 7px; border-radius: 3px; background: #e53e3e; display: inline-block; min-width: 3px; vertical-align: middle; }
+.bar-z   { height: 7px; width: 8px; border-radius: 3px; background: #c6f6d5; display: inline-block; vertical-align: middle; }
+.bar-a   { height: 7px; width: 10px; border-radius: 3px; background: #f6e05e; display: inline-block; vertical-align: middle; }
+
+/* CITY SUMMARY */
+.city-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap: 10px; padding: 14px 18px; }
+.city-card { background: #fff; border-radius: 9px; padding: 12px 14px; box-shadow: 0 1px 5px rgba(0,0,0,.07); border-left: 4px solid #e53e3e; }
+.city-card .cv { font-size: 22px; font-weight: 700; color: #c53030; margin: 3px 0 2px; }
+.city-card .cl { font-size: 10px; font-weight: 700; color: #718096; text-transform: uppercase; letter-spacing: .3px; }
+.city-card .cs { font-size: 11px; color: #a0aec0; margin-top: 1px; }
+
+.sec-head { font-size: 13px; font-weight: 700; padding: 14px 18px 8px; display: flex; align-items: center; gap: 8px; }
+.cnt-badge { background: #c53030; color: #fff; font-size: 11px; padding: 2px 9px; border-radius: 10px; }
+
+.legend { display: flex; gap: 14px; padding: 8px 18px 12px; font-size: 11px; flex-wrap: wrap; color: #4a5568; background: #fff; border-top: 1px solid #f0f4f8; }
+.leg { display: flex; align-items: center; gap: 4px; }
+.ldot { width: 10px; height: 10px; border-radius: 3px; }
+
+.empty { text-align: center; color: #a0aec0; padding: 36px; }
+</style>
+</head>
+<body>
+
+<!-- ════ UPLOAD SCREEN ════ -->
+<div id="upload-screen">
+  <div class="upload-card">
+    <div class="brand">KUSHALS</div>
+    <div class="brand-sub">Retail Pvt. Ltd. &mdash; Inventory &amp; Operations Audit</div>
+    <div class="card-title">&#128202; Weekly Shortage Spike Tracker &mdash; Upload Report</div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Report Month</label>
+        <select id="inp-month" onchange="chk()">
+          <option value="">— Select —</option>
+          <option>January</option><option>February</option><option>March</option>
+          <option>April</option><option>May</option><option>June</option>
+          <option>July</option><option>August</option><option>September</option>
+          <option>October</option><option>November</option><option>December</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Financial Year</label>
+        <select id="inp-year" onchange="chk()">
+          <option value="">— Select —</option>
+          <option>FY 2024-25</option><option>FY 2025-26</option>
+          <option>FY 2026-27</option><option>FY 2027-28</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Prepared By (optional)</label>
+      <input type="text" id="inp-by" placeholder="e.g. Yallappa T.">
+    </div>
+
+    <div class="field">
+      <label>Upload Excel File (.xlsx)</label>
+      <div class="file-drop" id="file-drop"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="onDrop(event)">
+        <div class="drop-icon" id="drop-icon">&#128193;</div>
+        <div class="drop-txt" id="drop-txt">Click to browse or drag &amp; drop</div>
+        <div class="drop-sub" id="drop-sub">Weekly_counting_format.xlsx</div>
+      </div>
+      <input type="file" id="file-input" accept=".xlsx,.xls" onchange="onFile(this.files[0])">
+    </div>
+
+    <button class="btn-go" id="btn-go" onclick="process()" disabled>&#9654; Process &amp; Load Report</button>
+    <div class="err" id="err"></div>
+    <div class="note">All data stays in your browser. Nothing is uploaded to any server.</div>
+  </div>
+</div>
+
+<!-- ════ LOADING ════ -->
+<div id="loading">
+  <div class="spin"></div>
+  <div id="load-txt" style="font-size:13px;font-weight:600">Reading file...</div>
+</div>
+
+<!-- ════ APP ════ -->
+<div id="app">
+
+  <div class="header">
+    <div>
+      <h1>&#9632; Kushals Retail &mdash; Weekly Shortage Spike Tracker</h1>
+      <p id="sub-title">—</p>
+    </div>
+    <div class="hstats">
+      <div class="hs"><div class="v" id="h-stores">—</div><div class="l">STORES</div></div>
+      <div class="hs red"><div class="v" id="h-spikes">—</div><div class="l">SPIKE EVENTS</div></div>
+      <div class="hs amb"><div class="v" id="h-audits">—</div><div class="l">AUDITS</div></div>
+      <button class="btn-new" onclick="reload()">&#8635; New File</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label>Market:</label>
+    <select id="f-market" onchange="go()"><option value="">All Markets</option></select>
+    <label>RM:</label>
+    <select id="f-rm" onchange="go()"><option value="">All RMs</option></select>
+    <label>CM:</label>
+    <select id="f-cm" onchange="go()"><option value="">All CMs</option></select>
+    <label>Search:</label>
+    <input type="text" id="f-search" placeholder="Store name..." oninput="go()" style="width:160px">
+    <span class="sep">|</span>
+    <label>Spike Week:</label>
+    <button class="pill" id="p-w2" onclick="toggleWeek('W2')">W2</button>
+    <button class="pill" id="p-w3" onclick="toggleWeek('W3')">W3</button>
+    <button class="pill" id="p-w4" onclick="toggleWeek('W4')">W4</button>
+    <span class="sep">|</span>
+    <label>Sort:</label>
+    <select id="f-sort" onchange="go()">
+      <option value="worst">Worst Spike First</option>
+      <option value="cum">Total Shortage</option>
+      <option value="name">Store Name</option>
+      <option value="market">Market</option>
+    </select>
+  </div>
+
+  <div class="tabs">
+    <div class="tab on"  id="tab-spikes"  onclick="showTab('spikes')">&#9888; Shortage Spikes</div>
+    <div class="tab"     id="tab-all"     onclick="showTab('all')">&#128200; All Stores WoW</div>
+    <div class="tab"     id="tab-summary" onclick="showTab('summary')">&#128203; Market Summary</div>
+  </div>
+
+  <!-- SPIKES TAB -->
+  <div id="pane-spikes">
+    <div class="sec-head">&#9888; Stores where shortage INCREASED week-on-week <span class="cnt-badge" id="spike-cnt">0</span></div>
+    <div class="twrap" style="padding-top:0">
+      <table id="spike-tbl">
+        <thead>
+          <tr>
+            <th class="L">Store Name</th>
+            <th class="L">Market</th>
+            <th class="L">Cluster Manager</th>
+            <th class="L">Regional Manager</th>
+            <th>Week</th>
+            <th>Previous Week</th>
+            <th>This Week</th>
+            <th>Increased By</th>
+            <th>Severity</th>
+          </tr>
+        </thead>
+        <tbody id="spike-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ALL STORES TAB -->
+  <div id="pane-all" style="display:none">
+    <div class="twrap">
+      <table id="all-tbl">
+        <thead>
+          <tr>
+            <th class="L" rowspan="2">Store Name</th>
+            <th class="L" rowspan="2">Market</th>
+            <th class="L" rowspan="2">CM</th>
+            <th class="L" rowspan="2">RM</th>
+            <th colspan="2">WEEK 1</th>
+            <th colspan="3">WEEK 2</th>
+            <th colspan="3">WEEK 3</th>
+            <th colspan="3">WEEK 4</th>
+            <th rowspan="2">4-Wk Total</th>
+          </tr>
+          <tr>
+            <th>Shortage</th><th>Bar</th>
+            <th>Shortage</th><th>Spike?</th><th>Bar</th>
+            <th>Shortage</th><th>Spike?</th><th>Bar</th>
+            <th>Shortage</th><th>Spike?</th><th>Bar</th>
+          </tr>
+        </thead>
+        <tbody id="all-body"></tbody>
+      </table>
+      <div class="empty" id="empty-all" style="display:none">No stores match.</div>
+    </div>
+    <div class="legend">
+      <div class="leg"><div class="ldot" style="background:#c53030"></div>Shortage (negative)</div>
+      <div class="leg"><div class="ldot" style="background:#276749"></div>Zero</div>
+      <div class="leg"><div class="ldot" style="background:#d69e2e"></div>Stock Audit reset</div>
+      <div class="leg"><div class="ldot" style="background:#c53030;border-radius:50%"></div>Spike — shortage worsened vs prev week</div>
+      <div class="leg" style="color:#a0aec0">Shortages carry forward until audit. After audit, counting resets to zero.</div>
+    </div>
+  </div>
+
+  <!-- SUMMARY TAB -->
+  <div id="pane-summary" style="display:none">
+    <div class="city-grid" id="mkt-cards"></div>
+    <div class="twrap" style="padding-top:0">
+      <table id="sum-tbl">
+        <thead>
+          <tr>
+            <th class="L">Market</th>
+            <th>Stores</th>
+            <th>W1 Shortage</th>
+            <th>W2 Shortage</th>
+            <th>W3 Shortage</th>
+            <th>W4 Shortage</th>
+            <th>4-Wk Total</th>
+            <th>Spike Events</th>
+          </tr>
+        </thead>
+        <tbody id="sum-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ═══════════════════════════════════════
+   DATA & STATE
+═══════════════════════════════════════ */
+let DATA = [];          // parsed store objects
+let selFile = null;
+let weekFilter = null;  // 'W2'|'W3'|'W4'|null
+
+/* ═══════════════════════════════════════
+   UPLOAD SCREEN LOGIC
+═══════════════════════════════════════ */
+function onFile(f) {
+  if (!f) return;
+  selFile = f;
+  const d = document.getElementById('file-drop');
+  d.classList.add('has-file');
+  document.getElementById('drop-icon').textContent = '✅';
+  document.getElementById('drop-txt').textContent  = f.name;
+  document.getElementById('drop-sub').textContent  = (f.size/1024).toFixed(1) + ' KB';
+  chk();
+}
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('file-drop').classList.remove('drag-over');
+  onFile(e.dataTransfer.files[0]);
+}
+function chk() {
+  const ok = document.getElementById('inp-month').value &&
+             document.getElementById('inp-year').value && selFile;
+  document.getElementById('btn-go').disabled = !ok;
+}
+
+function process() {
+  const month = document.getElementById('inp-month').value;
+  const year  = document.getElementById('inp-year').value;
+  const by    = document.getElementById('inp-by').value || 'Audit Team';
+  if (!month || !year || !selFile) return;
+  setLoad(true, 'Reading Excel...');
+  document.getElementById('err').style.display = 'none';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      setLoad(true, 'Parsing data...');
+      const wb   = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellFormula:false });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:null });
+      setLoad(true, 'Calculating spikes...');
+      DATA = parseRows(rows);
+      if (!DATA.length) { setLoad(false); showErr('No data found. Check file format.'); return; }
+      setLoad(false);
+      launch(month, year, by);
+    } catch(ex) {
+      setLoad(false); showErr('Error: ' + ex.message);
+    }
+  };
+  reader.readAsArrayBuffer(selFile);
+}
+
+/* ═══════════════════════════════════════
+   PARSE ROWS
+   Col layout (0-indexed):
+   0=Store, 1=CM, 2=RM, 3=Market, 4=Month
+   W1: 5=lbl,6=date,7=sys,8=phy,9=diff
+   W2:10=lbl,11=date,12=sys,13=phy,14=diff
+   W3:15=lbl,16=date,17=sys,18=phy,19=diff
+   W4:20=lbl,21=date,22=sys,23=phy,24=diff
+═══════════════════════════════════════ */
+function parseRows(rows) {
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || !r[0] || String(r[0]).trim() === '') continue;
+    const store  = String(r[0]).trim();
+    const cm     = r[1] ? String(r[1]).trim() : '';
+    const rm     = r[2] ? String(r[2]).trim() : '';
+    const market = r[3] ? String(r[3]).trim() : '';
+
+    // Week column offsets: [sys, phy, diff, timingLabel]
+    // timing is embedded in the label col (col 5,10,15,20) OR diff cell text
+    const wCols = [[7,8,9,5],[12,13,14,10],[17,18,19,15],[22,23,24,20]];
+    const weeks = [];
+
+    wCols.forEach(([sc,pc,dc,lc]) => {
+      const lbl     = r[lc] !== null ? String(r[lc]).trim() : '';
+      const rawDiff = r[dc];
+      const sysV    = r[sc];
+      const phyV    = r[pc];
+
+      // Detect audit / not received from any relevant cell
+      const allText = [lbl, String(rawDiff||''), String(sysV||''), String(phyV||'')]
+                        .join(' ').toUpperCase();
+
+      let status = 'OK', diff = null;
+
+      if (allText.includes('STOCK AUDIT') || (lbl.toUpperCase() === 'AUDIT'))
+        { status = 'AUDIT'; }
+      else if (allText.includes('NOT RECEIVED'))
+        { status = 'NOT RECEIVED'; }
+      else if (rawDiff === null && (sysV === null || sysV === '' || sysV === '-'))
+        { status = 'NO DATA'; }
+      else {
+        const n = parseFloat(rawDiff);
+        if (!isNaN(n)) {
+          diff = Math.round(n * 10) / 10;
+        } else if (sysV !== null && phyV !== null) {
+          const s = parseFloat(sysV), p = parseFloat(phyV);
+          diff = (!isNaN(s) && !isNaN(p)) ? Math.round((p - s)*10)/10 : null;
+          if (diff === null) status = 'NO DATA';
+        } else { status = 'NO DATA'; }
+      }
+      weeks.push({ d: diff, s: status });
+    });
+
+    // WoW spike detection — ONLY flag where shortage got WORSE (more negative)
+    for (let wi = 1; wi < 4; wi++) {
+      const cur = weeks[wi], prv = weeks[wi-1];
+      if (cur.s === 'OK' && prv.s === 'OK' && cur.d !== null && prv.d !== null) {
+        const change = cur.d - prv.d;    // negative = shortage increased
+        cur.spike = change < 0 ? Math.round(change * 10)/10 : null;
+      } else if (cur.s === 'OK' && prv.s === 'AUDIT' && cur.d !== null && cur.d < 0) {
+        cur.spike = null; // fresh start after audit — not counted as spike
+      } else {
+        cur.spike = null;
+      }
+    }
+    weeks[0].spike = null;
+
+    const cum = weeks.reduce((s,w) => s + (w.d !== null ? w.d : 0), 0);
+    out.push({ n: store, cm, rm, market, w: weeks, c: Math.round(cum*10)/10 });
+  }
+  return out;
+}
+
+/* ═══════════════════════════════════════
+   LAUNCH APP
+═══════════════════════════════════════ */
+function launch(month, year, by) {
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('sub-title').textContent =
+    month + ' ' + year + '  •  Prepared by: ' + by +
+    '  •  Shortages carry forward; reset after Stock Audit';
+
+  // Populate filter dropdowns
+  const mkts = [...new Set(DATA.map(s=>s.market))].filter(Boolean).sort();
+  const rms  = [...new Set(DATA.map(s=>s.rm))].filter(Boolean).sort();
+  const cms  = [...new Set(DATA.map(s=>s.cm))].filter(Boolean).sort();
+  fill('f-market', mkts);
+  fill('f-rm',     rms);
+  fill('f-cm',     cms);
+
+  weekFilter = null;
+  go();
+  renderSummary();
+}
+
+function fill(id, arr) {
+  const sel = document.getElementById(id);
+  const first = sel.options[0].outerHTML;
+  sel.innerHTML = first + arr.map(v=>`<option>${v}</option>`).join('');
+}
+
+/* ═══════════════════════════════════════
+   FILTERS
+═══════════════════════════════════════ */
+function toggleWeek(w) {
+  weekFilter = weekFilter === w ? null : w;
+  ['W2','W3','W4'].forEach(x =>
+    document.getElementById('p-'+x).classList.toggle('on', weekFilter === x));
+  go();
+}
+
+function filtered() {
+  const mkt    = document.getElementById('f-market').value;
+  const rm     = document.getElementById('f-rm').value;
+  const cm     = document.getElementById('f-cm').value;
+  const search = document.getElementById('f-search').value.toLowerCase();
+  const sort   = document.getElementById('f-sort').value;
+
+  let out = DATA.filter(s => {
+    if (mkt    && s.market !== mkt) return false;
+    if (rm     && s.rm !== rm)     return false;
+    if (cm     && s.cm !== cm)     return false;
+    if (search && !s.n.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  if (sort === 'worst') {
+    out.sort((a,b) => {
+      const wa = Math.min(...a.w.map(w=>w.spike||0));
+      const wb2= Math.min(...b.w.map(w=>w.spike||0));
+      return wa - wb2;
+    });
+  } else if (sort === 'cum')    { out.sort((a,b)=>a.c-b.c); }
+  else if (sort === 'name')   { out.sort((a,b)=>a.n.localeCompare(b.n)); }
+  else if (sort === 'market') { out.sort((a,b)=>a.market.localeCompare(b.market)); }
+  return out;
+}
+
+function go() {
+  const data = filtered();
+
+  // Update header counts
+  document.getElementById('h-stores').textContent = data.length;
+  let spikeCnt = 0, auditCnt = 0;
+  data.forEach(s => {
+    s.w.forEach(w => { if (w.spike !== null) spikeCnt++; });
+    if (s.w.some(w => w.s==='AUDIT')) auditCnt++;
+  });
+  document.getElementById('h-spikes').textContent = spikeCnt;
+  document.getElementById('h-audits').textContent = auditCnt;
+
+  renderSpikes(data);
+  renderAll(data);
+}
+
+function showTab(t) {
+  ['spikes','all','summary'].forEach(x => {
+    document.getElementById('pane-'+x).style.display = x===t ? '' : 'none';
+    document.getElementById('tab-'+x).classList.toggle('on', x===t);
+  });
+}
+
+/* ═══════════════════════════════════════
+   RENDER — SPIKE TABLE
+═══════════════════════════════════════ */
+function renderSpikes(data) {
+  const rows = [];
+  data.forEach(s => {
+    s.w.forEach((w, i) => {
+      if (i === 0 || w.spike === null) return;
+      const wLabel = 'W' + (i+1);
+      if (weekFilter && weekFilter !== wLabel) return;
+      rows.push({
+        store: s.n, cm: s.cm, rm: s.rm, market: s.market,
+        week: wLabel,
+        prev: w.d - w.spike,   // previous week diff
+        curr: w.d,             // this week diff
+        inc:  w.spike          // negative number — how much worse
+      });
+    });
+  });
+
+  document.getElementById('spike-cnt').textContent = rows.length;
+  document.getElementById('h-spikes').textContent  = rows.length;
+
+  const tbody = document.getElementById('spike-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No shortage spikes for current filter.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const abs = Math.abs(r.inc);
+    const sev = abs >= 5
+      ? `<span class="spike-big">HIGH ▲${abs}</span>`
+      : abs >= 2
+      ? `<span class="spike-med">MED ▲${abs}</span>`
+      : `<span class="spike-low">LOW ▲${abs}</span>`;
+    return `<tr class="spike-row">
+      <td class="L store">${r.store}</td>
+      <td class="L meta">${r.market}</td>
+      <td class="L meta">${r.cm}</td>
+      <td class="L meta">${r.rm}</td>
+      <td style="font-weight:700;color:#0f3460">${r.week}</td>
+      <td class="neg">${r.prev}</td>
+      <td class="neg">${r.curr}</td>
+      <td><span class="spike-big">▲ ${abs}</span></td>
+      <td>${sev}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════
+   RENDER — ALL STORES TABLE
+═══════════════════════════════════════ */
+function dCell(w) {
+  if (w.s==='AUDIT')        return '<span class="audit-b">AUDIT</span>';
+  if (w.s==='NOT RECEIVED') return '<span class="notrcv-b">NOT RCVD</span>';
+  if (w.d===null)           return '<span class="nodata">—</span>';
+  if (w.d < 0) return `<span class="neg">${w.d}</span>`;
+  if (w.d === 0) return '<span class="zero">0</span>';
+  return `<span style="color:#276749">+${w.d}</span>`;
+}
+function spikeCell(w) {
+  if (!w || w.spike === null) return '<span class="nodata">—</span>';
+  const a = Math.abs(w.spike);
+  if (a >= 5) return `<span class="spike-big">▲${a}</span>`;
+  if (a >= 2) return `<span class="spike-med">▲${a}</span>`;
+  return `<span class="spike-low">▲${a}</span>`;
+}
+function barCell(w) {
+  if (!w) return '';
+  if (w.s==='AUDIT') return '<div class="bar-a"></div>';
+  if (w.d===null) return '';
+  if (w.d===0) return '<div class="bar-z"></div>';
+  return `<div class="bar" style="width:${Math.min(Math.abs(w.d)*3,55)}px"></div>`;
+}
+
+function renderAll(data) {
+  document.getElementById('empty-all').style.display = data.length ? 'none' : '';
+  const tbody = document.getElementById('all-body');
+  if (!data.length) { tbody.innerHTML=''; return; }
+  tbody.innerHTML = data.map(s => {
+    const hasSpike = s.w.some(w=>w.spike!==null);
+    const w = s.w;
+    return `<tr class="${hasSpike?'spike-row':''}">
+      <td class="L store">${hasSpike?'⚠ ':''}${s.n}</td>
+      <td class="L meta">${s.market}</td>
+      <td class="L meta">${s.cm}</td>
+      <td class="L meta">${s.rm}</td>
+      <td>${dCell(w[0])}</td><td>${barCell(w[0])}</td>
+      <td>${dCell(w[1])}</td><td>${spikeCell(w[1])}</td><td>${barCell(w[1])}</td>
+      <td>${dCell(w[2])}</td><td>${spikeCell(w[2])}</td><td>${barCell(w[2])}</td>
+      <td>${dCell(w[3])}</td><td>${spikeCell(w[3])}</td><td>${barCell(w[3])}</td>
+      <td class="${s.c<0?'cum-neg':'cum-ok'}">${s.c}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════
+   RENDER — MARKET SUMMARY
+═══════════════════════════════════════ */
+function renderSummary() {
+  const cm = {};
+  DATA.forEach(s => {
+    if (!cm[s.market]) cm[s.market] = { stores:[], w:[0,0,0,0], cum:0, spikes:0 };
+    cm[s.market].stores.push(s);
+    s.w.forEach((w,i) => { if (w.d!==null) cm[s.market].w[i]+=w.d; });
+    cm[s.market].cum += s.c;
+    s.w.forEach(w => { if (w.spike!==null) cm[s.market].spikes++; });
+  });
+  const mkts = Object.entries(cm).sort((a,b)=>a[1].cum-b[1].cum);
+
+  document.getElementById('mkt-cards').innerHTML = mkts.slice(0,6).map(([m,d])=>
+    `<div class="city-card">
+      <div class="cl">${m}</div>
+      <div class="cv">${Math.round(d.cum)}</div>
+      <div class="cs">${d.stores.length} stores &bull; ${d.spikes} spikes</div>
+    </div>`).join('');
+
+  document.getElementById('sum-body').innerHTML = mkts.map(([m,d])=>`<tr>
+    <td class="L" style="font-weight:600">${m}</td>
+    <td>${d.stores.length}</td>
+    <td class="neg">${Math.round(d.w[0])}</td>
+    <td class="neg">${Math.round(d.w[1])}</td>
+    <td class="neg">${Math.round(d.w[2])}</td>
+    <td class="neg">${Math.round(d.w[3])}</td>
+    <td class="${d.cum<0?'cum-neg':'cum-ok'}">${Math.round(d.cum)}</td>
+    <td>${d.spikes>0?`<span class="cnt-badge">${d.spikes}</span>`:'<span class="nodata">0</span>'}</td>
+  </tr>`).join('');
+}
+
+/* ═══════════════════════════════════════
+   UTILS
+═══════════════════════════════════════ */
+function setLoad(on, txt) {
+  document.getElementById('loading').style.display = on ? 'flex' : 'none';
+  if (txt) document.getElementById('load-txt').textContent = txt;
+}
+function showErr(msg) {
+  const e = document.getElementById('err');
+  e.textContent = msg; e.style.display = 'block';
+}
+function reload() {
+  DATA = []; selFile = null; weekFilter = null;
+  document.getElementById('upload-screen').style.display = '';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('file-drop').classList.remove('has-file');
+  document.getElementById('drop-icon').textContent = '📂';
+  document.getElementById('drop-txt').textContent  = 'Click to browse or drag & drop';
+  document.getElementById('drop-sub').textContent  = 'Weekly_counting_format.xlsx';
+  document.getElementById('file-input').value = '';
+  document.getElementById('btn-go').disabled = true;
+  document.getElementById('err').style.display = 'none';
+  ['W2','W3','W4'].forEach(x => document.getElementById('p-'+x).classList.remove('on'));
+}
+</script>
+</body>
+</html>
