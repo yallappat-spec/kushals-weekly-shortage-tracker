@@ -394,6 +394,9 @@ let currentMode = 'excel';
 let gSheetRows  = null; // all rows fetched from Google Sheet
 let gSheetMonths = [];  // ordered list of unique months in sheet
 
+// Hardcoded sheet URL — auto-connects on every device with no setup
+const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/16wyp12FYoITFcb8r8elh_s9igRkBqE7HgB-A_TI5y54/edit?usp=sharing';
+
 /* ═══════════════════════════════════════
    MODE TOGGLE
 ═══════════════════════════════════════ */
@@ -508,14 +511,12 @@ function clearSavedSheet(e) {
   chk();
 }
 
-// Auto-connect on page load if a URL was previously saved
+// Auto-connect on every page load using the default (or saved) sheet URL
 window.addEventListener('load', () => {
-  const saved = localStorage.getItem('ks_gsheet_url');
-  if (saved) {
-    setMode('gsheet');
-    document.getElementById('inp-gurl').value = saved;
-    connectSheet(true);
-  }
+  const url = localStorage.getItem('ks_gsheet_url') || DEFAULT_SHEET_URL;
+  setMode('gsheet');
+  document.getElementById('inp-gurl').value = url;
+  connectSheet(true);
 });
 
 /* ═══════════════════════════════════════
@@ -914,8 +915,8 @@ function stopAutoRefresh() {
 }
 
 async function silentRefresh() {
-  const url = localStorage.getItem('ks_gsheet_url');
-  if (!url || currentMode !== 'gsheet') return;
+  const url = localStorage.getItem('ks_gsheet_url') || DEFAULT_SHEET_URL;
+  if (currentMode !== 'gsheet') return;
   const id = extractSheetId(url);
   if (!id) return;
 
@@ -991,15 +992,11 @@ function reload() {
   document.getElementById('err').style.display = 'none';
   ['W2','W3','W4'].forEach(x => document.getElementById('p-'+x).classList.remove('on'));
 
-  // If a sheet URL is saved, restore Google Sheet mode and reconnect
-  const saved = localStorage.getItem('ks_gsheet_url');
-  if (saved) {
-    setMode('gsheet');
-    document.getElementById('inp-gurl').value = saved;
-    connectSheet(true);
-  } else {
-    setMode(currentMode);
-  }
+  // Always reconnect to sheet (default or saved URL)
+  const url = localStorage.getItem('ks_gsheet_url') || DEFAULT_SHEET_URL;
+  setMode('gsheet');
+  document.getElementById('inp-gurl').value = url;
+  connectSheet(true);
 }
 </script>
 </body>
