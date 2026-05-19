@@ -47,6 +47,20 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f9; color: #
 .err { color: #c53030; font-size: 11px; background: #fff5f5; padding: 7px 10px; border-radius: 6px; margin-top: 10px; display: none; }
 .note { font-size: 10px; color: #a0aec0; margin-top: 10px; text-align: center; }
 
+/* ── MODE TOGGLE ── */
+.mode-tabs { display: flex; margin-bottom: 20px; border: 1.5px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.mode-btn { flex: 1; padding: 9px; font-size: 12px; font-weight: 600; background: #f7fafc; color: #4a5568; border: none; cursor: pointer; transition: background .15s, color .15s; }
+.mode-btn.on { background: #0f3460; color: #fff; }
+.mode-btn:not(.on):hover { background: #edf2f7; }
+
+/* ── GOOGLE SHEET CONNECT ── */
+.gs-connect { display: flex; gap: 8px; }
+.gs-connect input { flex: 1; height: 36px; padding: 0 10px; border: 1.5px solid #e2e8f0; border-radius: 7px; font-size: 12px; color: #1a202c; background: #f7fafc; outline: none; }
+.gs-connect input:focus { border-color: #0f3460; background: #fff; }
+.btn-connect { height: 36px; padding: 0 14px; background: #0f3460; color: #fff; border: none; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.btn-connect:hover { background: #1a4a80; }
+.gs-badge { font-size: 11px; color: #276749; background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 6px; padding: 6px 10px; margin-top: 8px; display: none; }
+
 /* ── LOADING ── */
 #loading { position: fixed; inset: 0; background: rgba(26,26,46,.88); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 999; color: #fff; gap: 14px; }
 .spin { width: 36px; height: 36px; border: 4px solid rgba(255,255,255,.2); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
@@ -140,49 +154,89 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="brand-sub">Retail Pvt. Ltd. &mdash; Inventory &amp; Operations Audit</div>
     <div class="card-title">&#128202; Weekly Shortage Spike Tracker &mdash; Upload Report</div>
 
-    <div class="row2">
-      <div class="field">
-        <label>Report Month</label>
-        <select id="inp-month" onchange="chk()">
-          <option value="">— Select —</option>
-          <option>January</option><option>February</option><option>March</option>
-          <option>April</option><option>May</option><option>June</option>
-          <option>July</option><option>August</option><option>September</option>
-          <option>October</option><option>November</option><option>December</option>
-        </select>
+    <!-- Mode toggle -->
+    <div class="mode-tabs">
+      <button class="mode-btn on" id="mode-excel" onclick="setMode('excel')">&#128193; Upload Excel</button>
+      <button class="mode-btn"    id="mode-gsheet" onclick="setMode('gsheet')">&#128202; Google Sheet</button>
+    </div>
+
+    <!-- ── EXCEL MODE ── -->
+    <div id="excel-mode">
+      <div class="row2">
+        <div class="field">
+          <label>Report Month</label>
+          <select id="inp-month" onchange="chk()">
+            <option value="">— Select —</option>
+            <option>January</option><option>February</option><option>March</option>
+            <option>April</option><option>May</option><option>June</option>
+            <option>July</option><option>August</option><option>September</option>
+            <option>October</option><option>November</option><option>December</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Financial Year</label>
+          <select id="inp-year" onchange="chk()">
+            <option value="">— Select —</option>
+            <option>FY 2024-25</option><option>FY 2025-26</option>
+            <option>FY 2026-27</option><option>FY 2027-28</option>
+          </select>
+        </div>
       </div>
       <div class="field">
-        <label>Financial Year</label>
-        <select id="inp-year" onchange="chk()">
-          <option value="">— Select —</option>
-          <option>FY 2024-25</option><option>FY 2025-26</option>
-          <option>FY 2026-27</option><option>FY 2027-28</option>
-        </select>
+        <label>Upload Excel File (.xlsx)</label>
+        <div class="file-drop" id="file-drop"
+             onclick="document.getElementById('file-input').click()"
+             ondragover="event.preventDefault();this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="onDrop(event)">
+          <div class="drop-icon" id="drop-icon">&#128193;</div>
+          <div class="drop-txt" id="drop-txt">Click to browse or drag &amp; drop</div>
+          <div class="drop-sub" id="drop-sub">Weekly_counting_format.xlsx</div>
+        </div>
+        <input type="file" id="file-input" accept=".xlsx,.xls" onchange="onFile(this.files[0])">
       </div>
     </div>
 
+    <!-- ── GOOGLE SHEET MODE ── -->
+    <div id="gsheet-mode" style="display:none">
+      <div class="field">
+        <label>Google Sheet URL</label>
+        <div class="gs-connect">
+          <input type="text" id="inp-gurl" placeholder="https://docs.google.com/spreadsheets/d/..." oninput="chk()">
+          <button class="btn-connect" onclick="connectSheet()">&#9654; Connect</button>
+        </div>
+        <div class="gs-badge" id="gs-badge">&#9989; Sheet connected &mdash; <span id="gs-row-count"></span> data rows loaded</div>
+      </div>
+      <div id="gsheet-selectors" style="display:none">
+        <div class="row2">
+          <div class="field">
+            <label>Month (from sheet)</label>
+            <select id="inp-gmonth" onchange="chk()"><option value="">— Select —</option></select>
+          </div>
+          <div class="field">
+            <label>Financial Year</label>
+            <select id="inp-gyear" onchange="chk()">
+              <option value="">— Select —</option>
+              <option>FY 2024-25</option><option>FY 2025-26</option>
+              <option>FY 2026-27</option><option>FY 2027-28</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="note" style="text-align:left;margin-top:0;margin-bottom:12px;color:#718096">
+        Share your Google Sheet as <strong>Anyone with the link &rarr; Viewer</strong> before connecting.
+      </div>
+    </div>
+
+    <!-- SHARED FIELDS -->
     <div class="field">
       <label>Prepared By (optional)</label>
       <input type="text" id="inp-by" placeholder="e.g. Yallappa T.">
     </div>
 
-    <div class="field">
-      <label>Upload Excel File (.xlsx)</label>
-      <div class="file-drop" id="file-drop"
-           onclick="document.getElementById('file-input').click()"
-           ondragover="event.preventDefault();this.classList.add('drag-over')"
-           ondragleave="this.classList.remove('drag-over')"
-           ondrop="onDrop(event)">
-        <div class="drop-icon" id="drop-icon">&#128193;</div>
-        <div class="drop-txt" id="drop-txt">Click to browse or drag &amp; drop</div>
-        <div class="drop-sub" id="drop-sub">Weekly_counting_format.xlsx</div>
-      </div>
-      <input type="file" id="file-input" accept=".xlsx,.xls" onchange="onFile(this.files[0])">
-    </div>
-
     <button class="btn-go" id="btn-go" onclick="process()" disabled>&#9654; Process &amp; Load Report</button>
     <div class="err" id="err"></div>
-    <div class="note">All data stays in your browser. Nothing is uploaded to any server.</div>
+    <div class="note" id="mode-note">All data stays in your browser. Nothing is uploaded to any server.</div>
   </div>
 </div>
 
@@ -329,9 +383,27 @@ tbody tr:last-child td { border-bottom: none; }
 let DATA = [];          // parsed store objects
 let selFile = null;
 let weekFilter = null;  // 'W2'|'W3'|'W4'|null
+let currentMode = 'excel';
+let gSheetRows  = null; // all rows fetched from Google Sheet
 
 /* ═══════════════════════════════════════
-   UPLOAD SCREEN LOGIC
+   MODE TOGGLE
+═══════════════════════════════════════ */
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('excel-mode').style.display  = m === 'excel'  ? '' : 'none';
+  document.getElementById('gsheet-mode').style.display = m === 'gsheet' ? '' : 'none';
+  document.getElementById('mode-excel').classList.toggle('on',  m === 'excel');
+  document.getElementById('mode-gsheet').classList.toggle('on', m === 'gsheet');
+  document.getElementById('mode-note').textContent =
+    m === 'excel'
+      ? 'All data stays in your browser. Nothing is uploaded to any server.'
+      : 'Data is read directly from your Google Sheet into the browser.';
+  chk();
+}
+
+/* ═══════════════════════════════════════
+   UPLOAD SCREEN LOGIC — EXCEL
 ═══════════════════════════════════════ */
 function onFile(f) {
   if (!f) return;
@@ -348,19 +420,88 @@ function onDrop(e) {
   document.getElementById('file-drop').classList.remove('drag-over');
   onFile(e.dataTransfer.files[0]);
 }
+
 function chk() {
-  const ok = document.getElementById('inp-month').value &&
-             document.getElementById('inp-year').value && selFile;
+  let ok = false;
+  if (currentMode === 'excel') {
+    ok = !!(document.getElementById('inp-month').value &&
+            document.getElementById('inp-year').value && selFile);
+  } else {
+    ok = !!(gSheetRows &&
+            document.getElementById('inp-gmonth').value &&
+            document.getElementById('inp-gyear').value);
+  }
   document.getElementById('btn-go').disabled = !ok;
 }
 
+/* ═══════════════════════════════════════
+   UPLOAD SCREEN LOGIC — GOOGLE SHEET
+═══════════════════════════════════════ */
+function extractSheetId(url) {
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : null;
+}
+
+async function connectSheet() {
+  const url = document.getElementById('inp-gurl').value.trim();
+  const id  = extractSheetId(url);
+  if (!id) { showErr('Invalid Google Sheet URL. Copy the full URL from your browser.'); return; }
+  document.getElementById('err').style.display = 'none';
+  setLoad(true, 'Connecting to Google Sheet...');
+
+  try {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`;
+    const res    = await fetch(csvUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}. Make sure the sheet is shared as "Anyone with the link → Viewer".`);
+    const text = await res.text();
+    if (text.trimStart().startsWith('<!')) throw new Error('Sheet is not publicly accessible. Share it as "Anyone with the link → Viewer" first.');
+
+    setLoad(true, 'Parsing sheet...');
+    const wb   = XLSX.read(text, { type: 'string' });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:null });
+
+    // Collect unique months from col 4 (same layout as Excel)
+    const months = [...new Set(
+      rows.slice(1)
+        .map(r => r && r[4] != null ? String(r[4]).trim() : '')
+        .filter(Boolean)
+    )];
+
+    if (!months.length) throw new Error('No month data found in column E. Check that your sheet uses the same column layout as the Excel format.');
+
+    gSheetRows = rows;
+
+    const sel = document.getElementById('inp-gmonth');
+    sel.innerHTML = '<option value="">— Select —</option>' +
+                    months.map(m => `<option>${m}</option>`).join('');
+
+    const dataRows = rows.length - 1;
+    document.getElementById('gs-row-count').textContent = dataRows + ' data row' + (dataRows!==1?'s':'');
+    document.getElementById('gs-badge').style.display = '';
+    document.getElementById('gsheet-selectors').style.display = '';
+    setLoad(false);
+    chk();
+  } catch(ex) {
+    setLoad(false);
+    showErr('Connection failed: ' + ex.message);
+  }
+}
+
+/* ═══════════════════════════════════════
+   PROCESS — BRANCHES BY MODE
+═══════════════════════════════════════ */
 function process() {
+  document.getElementById('err').style.display = 'none';
+  if (currentMode === 'gsheet') { processGSheet(); return; }
+  processExcel();
+}
+
+function processExcel() {
   const month = document.getElementById('inp-month').value;
   const year  = document.getElementById('inp-year').value;
   const by    = document.getElementById('inp-by').value || 'Audit Team';
   if (!month || !year || !selFile) return;
   setLoad(true, 'Reading Excel...');
-  document.getElementById('err').style.display = 'none';
 
   const reader = new FileReader();
   reader.onload = e => {
@@ -378,6 +519,31 @@ function process() {
     }
   };
   reader.readAsArrayBuffer(selFile);
+}
+
+function processGSheet() {
+  const month = document.getElementById('inp-gmonth').value;
+  const year  = document.getElementById('inp-gyear').value;
+  const by    = document.getElementById('inp-by').value || 'Audit Team';
+  if (!month || !year || !gSheetRows) return;
+  setLoad(true, 'Filtering data for ' + month + '...');
+
+  try {
+    // Filter rows where col 4 matches selected month
+    const header = gSheetRows[0];
+    const filtered = [header];
+    for (let i = 1; i < gSheetRows.length; i++) {
+      const r = gSheetRows[i];
+      if (r && r[4] != null && String(r[4]).trim() === month) filtered.push(r);
+    }
+    setLoad(true, 'Calculating spikes...');
+    DATA = parseRows(filtered);
+    if (!DATA.length) { setLoad(false); showErr('No rows found for "' + month + '". Check the Month column values in your sheet.'); return; }
+    setLoad(false);
+    launch(month, year, by);
+  } catch(ex) {
+    setLoad(false); showErr('Error: ' + ex.message);
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -687,7 +853,7 @@ function showErr(msg) {
   e.textContent = msg; e.style.display = 'block';
 }
 function reload() {
-  DATA = []; selFile = null; weekFilter = null;
+  DATA = []; selFile = null; weekFilter = null; gSheetRows = null;
   document.getElementById('upload-screen').style.display = '';
   document.getElementById('app').style.display = 'none';
   document.getElementById('file-drop').classList.remove('has-file');
@@ -695,9 +861,14 @@ function reload() {
   document.getElementById('drop-txt').textContent  = 'Click to browse or drag & drop';
   document.getElementById('drop-sub').textContent  = 'Weekly_counting_format.xlsx';
   document.getElementById('file-input').value = '';
+  document.getElementById('inp-gurl').value = '';
+  document.getElementById('gs-badge').style.display = 'none';
+  document.getElementById('gsheet-selectors').style.display = 'none';
+  document.getElementById('inp-gmonth').innerHTML = '<option value="">— Select —</option>';
   document.getElementById('btn-go').disabled = true;
   document.getElementById('err').style.display = 'none';
   ['W2','W3','W4'].forEach(x => document.getElementById('p-'+x).classList.remove('on'));
+  setMode(currentMode);
 }
 </script>
 </body>
