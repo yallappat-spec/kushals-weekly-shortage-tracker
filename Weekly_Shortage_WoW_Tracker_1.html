@@ -258,6 +258,10 @@ tbody tr:last-child td { border-bottom: none; }
       <div class="hs"><div class="v" id="h-stores">—</div><div class="l">STORES</div></div>
       <div class="hs red"><div class="v" id="h-spikes">—</div><div class="l">SPIKE EVENTS</div></div>
       <div class="hs amb"><div class="v" id="h-audits">—</div><div class="l">AUDITS</div></div>
+      <div id="auto-refresh-badge" style="display:none;font-size:10px;color:#90afc0;text-align:center">
+        <div id="ar-status">&#8635; Auto-refresh on</div>
+        <div id="ar-last" style="color:#718096"></div>
+      </div>
       <button class="btn-new" onclick="reload()">&#8635; New File</button>
     </div>
   </div>
@@ -580,6 +584,7 @@ function autoLaunchGSheet(month, year, by) {
     document.getElementById('month-switcher').style.display = '';
 
     launch(month, year, by);
+    startAutoRefresh();
   } catch(ex) {
     setLoad(false); showErr('Error: ' + ex.message);
   }
@@ -892,6 +897,73 @@ function renderSummary() {
 }
 
 /* ═══════════════════════════════════════
+   AUTO-REFRESH (Google Sheet mode only)
+═══════════════════════════════════════ */
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // every 5 minutes
+let autoRefreshTimer = null;
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  autoRefreshTimer = setInterval(silentRefresh, AUTO_REFRESH_MS);
+  document.getElementById('auto-refresh-badge').style.display = '';
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  document.getElementById('auto-refresh-badge').style.display = 'none';
+}
+
+async function silentRefresh() {
+  const url = localStorage.getItem('ks_gsheet_url');
+  if (!url || currentMode !== 'gsheet') return;
+  const id = extractSheetId(url);
+  if (!id) return;
+
+  try {
+    const res  = await fetch(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`);
+    if (!res.ok || (await res.clone().text()).trimStart().startsWith('<!')) return;
+    const text = await res.text();
+    const wb   = XLSX.read(text, { type: 'string' });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:null });
+
+    const months = [...new Set(
+      rows.slice(1).map(r => r && r[4] != null ? String(r[4]).trim() : '').filter(Boolean)
+    )];
+    if (!months.length) return;
+
+    gSheetRows   = rows;
+    gSheetMonths = months;
+
+    // Reload whichever month is currently selected in the switcher
+    const curMonth = document.getElementById('f-month').value || months[months.length - 1];
+
+    // Re-filter and re-render without showing the loading overlay
+    const header   = gSheetRows[0];
+    const filtered = [header];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (r && r[4] != null && String(r[4]).trim() === curMonth) filtered.push(r);
+    }
+    const fresh = parseRows(filtered);
+    if (!fresh.length) return;
+    DATA = fresh;
+
+    // Update month dropdown options
+    const fMonth = document.getElementById('f-month');
+    const prev   = fMonth.value;
+    fMonth.innerHTML = months.map(m => `<option${m===prev?' selected':''}>${m}</option>`).join('');
+
+    go();
+    renderSummary();
+
+    const now = new Date();
+    document.getElementById('ar-last').textContent =
+      'Updated ' + now.getHours().toString().padStart(2,'0') + ':' +
+      now.getMinutes().toString().padStart(2,'0');
+  } catch(_) { /* silent — don't disrupt the user */ }
+}
+
+/* ═══════════════════════════════════════
    UTILS
 ═══════════════════════════════════════ */
 function setLoad(on, txt) {
@@ -904,6 +976,7 @@ function showErr(msg) {
 }
 function reload() {
   DATA = []; selFile = null; weekFilter = null; gSheetRows = null;
+  stopAutoRefresh();
   document.getElementById('upload-screen').style.display = '';
   document.getElementById('app').style.display = 'none';
   document.getElementById('file-drop').classList.remove('has-file');
