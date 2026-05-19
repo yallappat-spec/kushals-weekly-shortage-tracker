@@ -263,6 +263,11 @@ tbody tr:last-child td { border-bottom: none; }
   </div>
 
   <div class="controls">
+    <div id="month-switcher" style="display:none">
+      <label>Month:</label>
+      <select id="f-month" onchange="switchMonth()"><option value="">All</option></select>
+      <span class="sep">|</span>
+    </div>
     <label>Market:</label>
     <select id="f-market" onchange="go()"><option value="">All Markets</option></select>
     <label>RM:</label>
@@ -385,6 +390,7 @@ let selFile = null;
 let weekFilter = null;  // 'W2'|'W3'|'W4'|null
 let currentMode = 'excel';
 let gSheetRows  = null; // all rows fetched from Google Sheet
+let gSheetMonths = [];  // ordered list of unique months in sheet
 
 /* ═══════════════════════════════════════
    MODE TOGGLE
@@ -468,21 +474,21 @@ async function connectSheet(silent) {
 
     if (!months.length) throw new Error('No month data found in column E. Check that your sheet uses the same column layout as the Excel format.');
 
-    gSheetRows = rows;
+    gSheetRows   = rows;
+    gSheetMonths = months;
 
     // Save URL so it auto-loads on next visit
     localStorage.setItem('ks_gsheet_url', url);
-
-    const sel = document.getElementById('inp-gmonth');
-    sel.innerHTML = '<option value="">— Select —</option>' +
-                    months.map(m => `<option>${m}</option>`).join('');
 
     const dataRows = rows.length - 1;
     document.getElementById('gs-row-count').textContent = dataRows + ' data row' + (dataRows!==1?'s':'');
     document.getElementById('gs-badge').style.display = '';
     document.getElementById('gsheet-selectors').style.display = '';
+
+    // Auto-launch with the latest month — no manual steps needed
+    const latestMonth = months[months.length - 1];
     setLoad(false);
-    chk();
+    autoLaunchGSheet(latestMonth);
   } catch(ex) {
     setLoad(false);
     if (!silent) showErr('Connection failed: ' + ex.message);
@@ -549,24 +555,49 @@ function processGSheet() {
   const year  = document.getElementById('inp-gyear').value;
   const by    = document.getElementById('inp-by').value || 'Audit Team';
   if (!month || !year || !gSheetRows) return;
-  setLoad(true, 'Filtering data for ' + month + '...');
+  autoLaunchGSheet(month, year, by);
+}
+
+function autoLaunchGSheet(month, year, by) {
+  if (!gSheetRows) return;
+  year = year || guessYear();
+  by   = by   || document.getElementById('inp-by').value || 'Audit Team';
+  setLoad(true, 'Loading ' + month + '...');
 
   try {
-    // Filter rows where col 4 matches selected month
-    const header = gSheetRows[0];
+    const header   = gSheetRows[0];
     const filtered = [header];
     for (let i = 1; i < gSheetRows.length; i++) {
       const r = gSheetRows[i];
       if (r && r[4] != null && String(r[4]).trim() === month) filtered.push(r);
     }
-    setLoad(true, 'Calculating spikes...');
     DATA = parseRows(filtered);
-    if (!DATA.length) { setLoad(false); showErr('No rows found for "' + month + '". Check the Month column values in your sheet.'); return; }
+    if (!DATA.length) { setLoad(false); showErr('No rows found for "' + month + '".'); return; }
     setLoad(false);
+
+    // Populate month switcher in app controls
+    const fMonth = document.getElementById('f-month');
+    fMonth.innerHTML = gSheetMonths.map(m =>
+      `<option${m===month?' selected':''}>${m}</option>`).join('');
+    document.getElementById('month-switcher').style.display = '';
+
     launch(month, year, by);
   } catch(ex) {
     setLoad(false); showErr('Error: ' + ex.message);
   }
+}
+
+function switchMonth() {
+  const month = document.getElementById('f-month').value;
+  if (!month || !gSheetRows) return;
+  autoLaunchGSheet(month);
+}
+
+function guessYear() {
+  const m = new Date().getMonth(); // 0-based
+  const y = new Date().getFullYear();
+  // FY runs Apr-Mar
+  return m >= 3 ? `FY ${y}-${String(y+1).slice(2)}` : `FY ${y-1}-${String(y).slice(2)}`;
 }
 
 /* ═══════════════════════════════════════
