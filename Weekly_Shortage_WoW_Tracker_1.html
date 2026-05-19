@@ -334,7 +334,6 @@ tbody tr:last-child td { border-bottom: none; }
             <th colspan="3">WEEK 2</th>
             <th colspan="3">WEEK 3</th>
             <th colspan="3">WEEK 4</th>
-            <th rowspan="2">4-Wk Total</th>
           </tr>
           <tr>
             <th>Shortage</th><th>Bar</th>
@@ -369,7 +368,6 @@ tbody tr:last-child td { border-bottom: none; }
             <th>W2 Shortage</th>
             <th>W3 Shortage</th>
             <th>W4 Shortage</th>
-            <th>4-Wk Total</th>
             <th>Spike Events</th>
           </tr>
         </thead>
@@ -857,7 +855,6 @@ function renderAll(data) {
       <td>${dCell(w[1])}</td><td>${spikeCell(w[1])}</td><td>${barCell(w[1])}</td>
       <td>${dCell(w[2])}</td><td>${spikeCell(w[2])}</td><td>${barCell(w[2])}</td>
       <td>${dCell(w[3])}</td><td>${spikeCell(w[3])}</td><td>${barCell(w[3])}</td>
-      <td class="${s.c<0?'cum-neg':'cum-ok'}">${s.c}</td>
     </tr>`;
   }).join('');
 }
@@ -890,7 +887,6 @@ function renderSummary() {
     <td class="neg">${Math.round(d.w[1])}</td>
     <td class="neg">${Math.round(d.w[2])}</td>
     <td class="neg">${Math.round(d.w[3])}</td>
-    <td class="${d.cum<0?'cum-neg':'cum-ok'}">${Math.round(d.cum)}</td>
     <td>${d.spikes>0?`<span class="cnt-badge">${d.spikes}</span>`:'<span class="nodata">0</span>'}</td>
   </tr>`).join('');
 }
