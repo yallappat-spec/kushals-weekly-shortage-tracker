@@ -651,12 +651,17 @@ function parseRows(rows) {
         const hasSysPhy = !isNaN(sysN) && !isNaN(phyN);
         const sysPhy = hasSysPhy ? Math.round((phyN - sysN) * 10) / 10 : null;
         const n = parseFloat(rawDiff);
-        if (!isNaN(n)) {
-          // If the pre-computed diff cell is 0 but sys/phy show a real discrepancy,
-          // the diff formula hasn't propagated correctly — use the raw counts instead.
-          diff = (n === 0 && sysPhy !== null && sysPhy !== 0) ? sysPhy : Math.round(n * 10) / 10;
+
+        if (!isNaN(n) && n !== 0) {
+          diff = Math.round(n * 10) / 10;                   // explicit non-zero diff — use it
+        } else if (sysPhy !== null && sysPhy !== 0) {
+          diff = sysPhy;                                     // phy≠sys reveals real shortage; diff formula was wrong
+        } else if (lbl === '' && (!hasSysPhy || (sysN === 0 && phyN === 0))) {
+          status = 'NO DATA';                               // all columns empty/zero — week not yet counted
+        } else if (!isNaN(n)) {
+          diff = Math.round(n * 10) / 10;                   // diff=0 with matching counts — genuine zero shortage
         } else if (sysPhy !== null) {
-          diff = sysPhy;
+          diff = sysPhy;                                     // fallback: compute from sys/phy (= 0 here)
         } else { status = 'NO DATA'; }
       }
       weeks.push({ d: diff, s: status });
