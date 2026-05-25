@@ -656,8 +656,8 @@ function parseRows(rows) {
           diff = Math.round(n * 10) / 10;                   // explicit non-zero diff — use it
         } else if (sysPhy !== null && sysPhy !== 0) {
           diff = sysPhy;                                     // phy≠sys reveals real shortage; diff formula was wrong
-        } else if (lbl === '' && (!hasSysPhy || (sysN === 0 && phyN === 0))) {
-          status = 'NO DATA';                               // all columns empty/zero — week not yet counted
+        } else if ((!hasSysPhy || (sysN === 0 && phyN === 0)) && (isNaN(n) || n === 0)) {
+          status = 'NO DATA';                               // sys/phy missing or zero with no diff — week not yet counted
         } else if (!isNaN(n)) {
           diff = Math.round(n * 10) / 10;                   // diff=0 with matching counts — genuine zero shortage
         } else if (sysPhy !== null) {
