@@ -647,13 +647,16 @@ function parseRows(rows) {
       else if (rawDiff === null && (sysV === null || sysV === '' || sysV === '-'))
         { status = 'NO DATA'; }
       else {
+        const sysN = parseFloat(sysV), phyN = parseFloat(phyV);
+        const hasSysPhy = !isNaN(sysN) && !isNaN(phyN);
+        const sysPhy = hasSysPhy ? Math.round((phyN - sysN) * 10) / 10 : null;
         const n = parseFloat(rawDiff);
         if (!isNaN(n)) {
-          diff = Math.round(n * 10) / 10;
-        } else if (sysV !== null && phyV !== null) {
-          const s = parseFloat(sysV), p = parseFloat(phyV);
-          diff = (!isNaN(s) && !isNaN(p)) ? Math.round((p - s)*10)/10 : null;
-          if (diff === null) status = 'NO DATA';
+          // If the pre-computed diff cell is 0 but sys/phy show a real discrepancy,
+          // the diff formula hasn't propagated correctly — use the raw counts instead.
+          diff = (n === 0 && sysPhy !== null && sysPhy !== 0) ? sysPhy : Math.round(n * 10) / 10;
+        } else if (sysPhy !== null) {
+          diff = sysPhy;
         } else { status = 'NO DATA'; }
       }
       weeks.push({ d: diff, s: status });
@@ -664,7 +667,12 @@ function parseRows(rows) {
       const cur = weeks[wi], prv = weeks[wi-1];
       if (cur.s === 'OK' && prv.s === 'OK' && cur.d !== null && prv.d !== null) {
         const change = cur.d - prv.d;    // negative = shortage increased
-        cur.spike = change < 0 ? Math.round(change * 10)/10 : null;
+        if (change < 0) {
+          cur.spike = Math.round(change * 10) / 10;
+          cur.prevD = prv.d;  // store directly so spike table shows exact parsed value
+        } else {
+          cur.spike = null;
+        }
       } else if (cur.s === 'OK' && prv.s === 'AUDIT' && cur.d !== null && cur.d < 0) {
         cur.spike = null; // fresh start after audit — not counted as spike
       } else {
@@ -782,7 +790,7 @@ function renderSpikes(data) {
       rows.push({
         store: s.n, cm: s.cm, rm: s.rm, market: s.market,
         week: wLabel,
-        prev: w.d - w.spike,   // previous week diff
+        prev: w.prevD,         // previous week diff (stored directly in parseRows)
         curr: w.d,             // this week diff
         inc:  w.spike          // negative number — how much worse
       });
