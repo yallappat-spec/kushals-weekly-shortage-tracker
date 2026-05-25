@@ -710,7 +710,14 @@ function launch(month, year, by) {
   fill('f-rm',     rms);
   fill('f-cm',     cms);
 
-  weekFilter = null;
+  // Auto-select the latest week that has any spike data
+  const latestWi = DATA.reduce((mx, s) => {
+    s.w.forEach((w, i) => { if (w.spike !== null && i > mx) mx = i; });
+    return mx;
+  }, -1);
+  weekFilter = latestWi >= 1 ? 'W' + (latestWi + 1) : null;
+  ['w2','w3','w4'].forEach(x =>
+    document.getElementById('p-'+x).classList.toggle('on', weekFilter === x.toUpperCase()));
   go();
   renderSummary();
 }
