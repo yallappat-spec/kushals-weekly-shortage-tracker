@@ -878,7 +878,18 @@ function renderSpikes(data) {
 
   const tbody = document.getElementById('spike-body');
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No shortage spikes for current filter.</td></tr>';
+    // If fewer than 2 weeks have counted data, explain why spikes can't exist yet
+    const counted = [0,1,2,3].filter(i => data.some(s => s.w[i] && s.w[i].s === 'OK' && s.w[i].d !== null));
+    let msg = 'No shortage spikes for current filter.';
+    if (counted.length === 1) {
+      msg = '&#9203; Only <strong>Week ' + (counted[0]+1) + '</strong> has been counted for this month so far.' +
+            '<br>Spikes compare week-on-week, so they will appear automatically once the next week\'s counting is entered.' +
+            '<br>Meanwhile, see the <strong>Qty Details</strong> or <strong>All Stores WoW</strong> tab for this week\'s counts.';
+    } else if (counted.length === 0) {
+      msg = '&#9203; No weekly counting has been entered for this month yet.' +
+            '<br>Spikes will appear here once at least two weeks have been counted.';
+    }
+    tbody.innerHTML = '<tr><td colspan="9" class="empty" style="line-height:1.9">' + msg + '</td></tr>';
     return;
   }
 
