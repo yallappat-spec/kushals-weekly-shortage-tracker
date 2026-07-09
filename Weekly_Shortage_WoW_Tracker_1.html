@@ -638,7 +638,7 @@ function autoLaunchGSheet(month, year, by) {
       const r = gSheetRows[i];
       if (r && r[4] != null && String(r[4]).trim() === month) filtered.push(r);
     }
-    DATA = parseRows(filtered);
+    DATA = parseRows(filtered, monthPrevMap(month));
     if (!DATA.length) { setLoad(false); showErr('No rows found for "' + month + '".'); return; }
     setLoad(false);
 
@@ -661,6 +661,35 @@ function switchMonth() {
   autoLaunchGSheet(month);
 }
 
+/* Build a map of store → previous month's last counted week, so W1 of the
+   selected month can be compared against it (shortages carry forward).
+   Scans W4→W1 of the previous month; an AUDIT encountered first means a
+   fresh start, so no comparison is made for that store. */
+function monthPrevMap(month) {
+  if (!gSheetRows || !gSheetMonths.length) return null;
+  const idx = gSheetMonths.indexOf(month);
+  if (idx <= 0) return null;
+  const prevMonth = gSheetMonths[idx - 1];
+  const rows = [gSheetRows[0]];
+  for (let i = 1; i < gSheetRows.length; i++) {
+    const r = gSheetRows[i];
+    if (r && r[4] != null && String(r[4]).trim() === prevMonth) rows.push(r);
+  }
+  if (rows.length === 1) return null;
+  const map = {};
+  parseRows(rows).forEach(s => {
+    for (let i = 3; i >= 0; i--) {
+      const w = s.w[i];
+      if (w.s === 'AUDIT') { map[s.n] = { d: null, s: 'AUDIT' }; break; }
+      if (w.s === 'OK' && w.d !== null) {
+        map[s.n] = { d: w.d, s: 'OK', lbl: prevMonth + ' W' + (i + 1) };
+        break;
+      }
+    }
+  });
+  return map;
+}
+
 function guessYear() {
   const m = new Date().getMonth(); // 0-based
   const y = new Date().getFullYear();
@@ -677,7 +706,7 @@ function guessYear() {
    W3:15=lbl,16=date,17=sys,18=phy,19=diff
    W4:20=lbl,21=date,22=sys,23=phy,24=diff
 ═══════════════════════════════════════ */
-function parseRows(rows) {
+function parseRows(rows, prevMap) {
   const out = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
@@ -755,6 +784,22 @@ function parseRows(rows) {
       }
     }
     weeks[0].spike = null;
+
+    // Cross-month carry-forward: W1 is compared against the previous
+    // month's last counted week (e.g. July W1 vs June W4). Skipped when
+    // the previous month ended with a Stock Audit (fresh start).
+    if (prevMap) {
+      const pw = prevMap[store];
+      const w1 = weeks[0];
+      if (pw && pw.s === 'OK' && pw.d !== null && w1.s === 'OK' && w1.d !== null) {
+        const change = w1.d - pw.d;
+        if (change < 0) {
+          w1.spike   = Math.round(change * 10) / 10;
+          w1.prevD   = pw.d;
+          w1.prevLbl = pw.lbl;
+        }
+      }
+    }
 
     const cum = weeks.reduce((s,w) => s + (w.d !== null ? w.d : 0), 0);
     out.push({ n: store, cm, rm, market, w: weeks, c: Math.round(cum*10)/10 });
@@ -860,13 +905,14 @@ function renderSpikes(data) {
   const rows = [];
   data.forEach(s => {
     s.w.forEach((w, i) => {
-      if (i === 0 || w.spike === null) return;
+      if (w.spike === null) return;
       const wLabel = 'W' + (i+1);
       if (weekFilter && weekFilter !== wLabel) return;
       rows.push({
         store: s.n, cm: s.cm, rm: s.rm, market: s.market,
         week: wLabel,
         prev: w.prevD,         // previous week diff (stored directly in parseRows)
+        prevLbl: w.prevLbl,    // set for W1 spikes: which prev-month week was the baseline
         curr: w.d,             // this week diff
         inc:  w.spike          // negative number — how much worse
       });
@@ -878,7 +924,23 @@ function renderSpikes(data) {
 
   const tbody = document.getElementById('spike-body');
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No shortage spikes for current filter.</td></tr>';
+    // If fewer than 2 weeks have counted data, explain why spikes can't exist yet
+    const counted = [0,1,2,3].filter(i => data.some(s => s.w[i] && s.w[i].s === 'OK' && s.w[i].d !== null));
+    let msg = 'No shortage spikes for current filter.';
+    if (counted.length === 1) {
+      msg = '&#9203; Only <strong>Week ' + (counted[0]+1) + '</strong> has been counted for this month so far.' +
+            '<br>Spikes compare week-on-week, so they will appear automatically once the next week\'s counting is entered.' +
+            '<br>Meanwhile, see the <strong>Qty Details</strong> or <strong>All Stores WoW</strong> tab for this week\'s counts.';
+      const curM = document.getElementById('f-month').value;
+      if (counted[0] === 0 && gSheetMonths.indexOf(curM) > 0) {
+        msg += '<br><span class="zero">&#10003; Week 1 was also compared against ' + gSheetMonths[gSheetMonths.indexOf(curM)-1] +
+               '\'s closing count &mdash; no store got worse.</span>';
+      }
+    } else if (counted.length === 0) {
+      msg = '&#9203; No weekly counting has been entered for this month yet.' +
+            '<br>Spikes will appear here once at least two weeks have been counted.';
+    }
+    tbody.innerHTML = '<tr><td colspan="9" class="empty" style="line-height:1.9">' + msg + '</td></tr>';
     return;
   }
 
@@ -894,8 +956,8 @@ function renderSpikes(data) {
       <td class="L meta">${r.market}</td>
       <td class="L meta">${r.cm}</td>
       <td class="L meta">${r.rm}</td>
-      <td style="font-weight:700;color:#0f3460">${r.week}</td>
-      <td class="neg">${r.prev}</td>
+      <td style="font-weight:700;color:#2e3a6e">${r.week}</td>
+      <td class="neg">${r.prev}${r.prevLbl ? ` <span class="nodata" style="font-size:9px">(${r.prevLbl})</span>` : ''}</td>
       <td class="neg">${r.curr}</td>
       <td><span class="spike-big">▲ ${abs}</span></td>
       <td>${sev}</td>
@@ -1067,7 +1129,7 @@ async function silentRefresh() {
       const r = rows[i];
       if (r && r[4] != null && String(r[4]).trim() === curMonth) filtered.push(r);
     }
-    const fresh = parseRows(filtered);
+    const fresh = parseRows(filtered, monthPrevMap(curMonth));
     if (!fresh.length) return;
     DATA = fresh;
 
