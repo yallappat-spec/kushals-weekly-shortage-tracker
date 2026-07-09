@@ -298,6 +298,7 @@ tbody tr:last-child td { border-bottom: none; }
   <div class="tabs">
     <div class="tab on"  id="tab-spikes"  onclick="showTab('spikes')">&#9888; Shortage Spikes</div>
     <div class="tab"     id="tab-all"     onclick="showTab('all')">&#128200; All Stores WoW</div>
+    <div class="tab"     id="tab-qty"     onclick="showTab('qty')">&#128230; Qty Details (Sys vs Phy)</div>
     <div class="tab"     id="tab-summary" onclick="showTab('summary')">&#128203; Market Summary</div>
   </div>
 
@@ -356,6 +357,42 @@ tbody tr:last-child td { border-bottom: none; }
       <div class="leg"><div class="ldot" style="background:#d69e2e"></div>Stock Audit reset</div>
       <div class="leg"><div class="ldot" style="background:#c53030;border-radius:50%"></div>Spike — shortage worsened vs prev week</div>
       <div class="leg" style="color:#a0aec0">Shortages carry forward until audit. After audit, counting resets to zero.</div>
+    </div>
+  </div>
+
+  <!-- QTY DETAILS TAB -->
+  <div id="pane-qty" style="display:none">
+    <div class="sec-head">&#128230; System Qty vs Physical Qty vs Difference &mdash; week-wise <span class="cnt-badge" id="qty-cnt" style="background:#0f3460">0</span></div>
+    <div class="twrap" style="padding-top:0">
+      <table id="qty-tbl">
+        <thead>
+          <tr>
+            <th class="L" rowspan="2">Store Name</th>
+            <th class="L" rowspan="2">Market</th>
+            <th class="L" rowspan="2">CM</th>
+            <th class="L" rowspan="2">RM</th>
+            <th colspan="3">WEEK 1</th>
+            <th colspan="3">WEEK 2</th>
+            <th colspan="3">WEEK 3</th>
+            <th colspan="3">WEEK 4</th>
+          </tr>
+          <tr>
+            <th>Sys</th><th>Phy</th><th>Diff</th>
+            <th>Sys</th><th>Phy</th><th>Diff</th>
+            <th>Sys</th><th>Phy</th><th>Diff</th>
+            <th>Sys</th><th>Phy</th><th>Diff</th>
+          </tr>
+        </thead>
+        <tbody id="qty-body"></tbody>
+      </table>
+      <div class="empty" id="empty-qty" style="display:none">No stores match.</div>
+    </div>
+    <div class="legend">
+      <div class="leg"><strong>Sys</strong> = System Qty</div>
+      <div class="leg"><strong>Phy</strong> = Physical (counted) Qty</div>
+      <div class="leg"><strong>Diff</strong> = Physical &minus; System</div>
+      <div class="leg"><div class="ldot" style="background:#c53030"></div>Difference is a shortage (negative)</div>
+      <div class="leg" style="color:#a0aec0">Switch the Month filter above to view any month; use Market / RM / CM / Search to narrow down.</div>
     </div>
   </div>
 
@@ -664,7 +701,13 @@ function parseRows(rows) {
           diff = sysPhy;                                     // fallback: compute from sys/phy (= 0 here)
         } else { status = 'NO DATA'; }
       }
-      weeks.push({ d: diff, s: status });
+      // Keep raw System/Physical qty for the Qty Details tab
+      const sysNum = parseFloat(sysV), phyNum = parseFloat(phyV);
+      weeks.push({
+        d: diff, s: status,
+        sy: isNaN(sysNum) ? null : sysNum,
+        ph: isNaN(phyNum) ? null : phyNum
+      });
     });
 
     // WoW spike detection — ONLY flag where shortage got WORSE (more negative)
@@ -773,10 +816,11 @@ function go() {
 
   renderSpikes(data);
   renderAll(data);
+  renderQty(data);
 }
 
 function showTab(t) {
-  ['spikes','all','summary'].forEach(x => {
+  ['spikes','all','qty','summary'].forEach(x => {
     document.getElementById('pane-'+x).style.display = x===t ? '' : 'none';
     document.getElementById('tab-'+x).classList.toggle('on', x===t);
   });
@@ -874,6 +918,44 @@ function renderAll(data) {
       <td>${dCell(w[1])}</td><td>${spikeCell(w[1])}</td><td>${barCell(w[1])}</td>
       <td>${dCell(w[2])}</td><td>${spikeCell(w[2])}</td><td>${barCell(w[2])}</td>
       <td>${dCell(w[3])}</td><td>${spikeCell(w[3])}</td><td>${barCell(w[3])}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════
+   RENDER — QTY DETAILS (System vs Physical vs Difference)
+═══════════════════════════════════════ */
+function qtyNum(v) {
+  if (v === null || v === undefined) return '<span class="nodata">—</span>';
+  return `${v}`;
+}
+function qtyDiffCell(w) {
+  if (w.s==='AUDIT')        return '<span class="audit-b">AUDIT</span>';
+  if (w.s==='NOT RECEIVED') return '<span class="notrcv-b">NOT RCVD</span>';
+  if (w.d===null)           return '<span class="nodata">—</span>';
+  if (w.d < 0)  return `<span class="neg">${w.d}</span>`;
+  if (w.d === 0) return '<span class="zero">0</span>';
+  return `<span style="color:#276749">+${w.d}</span>`;
+}
+function qtyTriple(w) {
+  return `<td>${qtyNum(w.sy)}</td><td>${qtyNum(w.ph)}</td><td>${qtyDiffCell(w)}</td>`;
+}
+function renderQty(data) {
+  document.getElementById('qty-cnt').textContent = data.length;
+  document.getElementById('empty-qty').style.display = data.length ? 'none' : '';
+  const tbody = document.getElementById('qty-body');
+  if (!data.length) { tbody.innerHTML=''; return; }
+  tbody.innerHTML = data.map(s => {
+    const w = s.w;
+    return `<tr>
+      <td class="L store">${s.n}</td>
+      <td class="L meta">${s.market}</td>
+      <td class="L meta">${s.cm}</td>
+      <td class="L meta">${s.rm}</td>
+      ${qtyTriple(w[0])}
+      ${qtyTriple(w[1])}
+      ${qtyTriple(w[2])}
+      ${qtyTriple(w[3])}
     </tr>`;
   }).join('');
 }
