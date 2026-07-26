@@ -171,6 +171,20 @@ tbody tr:last-child td { border-bottom: none; }
 
 .empty { text-align: center; color: var(--mut); padding: 40px; }
 
+/* QTY TOTALS STRIP (top of Qty Details) */
+.qty-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 4px 20px 14px; }
+.qtc { background: #fff; border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow); position: relative; overflow: hidden; border: 1px solid var(--line); }
+.qtc::before { content: ""; position: absolute; top: 0; left: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--navy-3), var(--navy)); }
+.qtc.empty-wk::before { background: #ccd2e0; }
+.qtc .qtc-wk { font-size: 10px; font-weight: 800; color: var(--mut); text-transform: uppercase; letter-spacing: .8px; }
+.qtc .qtc-sys { font-size: 23px; font-weight: 800; color: var(--navy); letter-spacing: -.5px; margin: 3px 0 2px; }
+.qtc .qtc-sys-lbl { font-size: 10px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .5px; }
+.qtc .qtc-sub { font-size: 11px; color: var(--mut); margin-top: 6px; display: flex; gap: 12px; }
+.qtc .qtc-sub b { color: var(--ink-2); font-weight: 700; }
+.qtc .qtc-diff-neg { color: var(--red); font-weight: 800; }
+.qtc .qtc-diff-ok  { color: var(--green); font-weight: 800; }
+.qtc .qtc-empty { font-size: 15px; font-weight: 700; color: #c3c9d8; margin: 4px 0; }
+
 /* QTY TOTALS FOOTER */
 tfoot td { padding: 11px 10px; text-align: center; font-size: 12.5px; white-space: nowrap; border-top: 2px solid var(--navy-3); }
 tfoot tr { background: linear-gradient(120deg, #f3f5fb, #eef0f6); }
@@ -399,6 +413,7 @@ tfoot td.tot-diff-ok  { font-weight: 800; color: var(--green); }
   <!-- QTY DETAILS TAB -->
   <div id="pane-qty" style="display:none">
     <div class="sec-head">&#128230; System Qty vs Physical Qty vs Difference &mdash; week-wise <span class="cnt-badge" id="qty-cnt" style="background:#0f3460">0</span></div>
+    <div class="qty-totals" id="qty-totals"></div>
     <div class="twrap" style="padding-top:0">
       <table id="qty-tbl">
         <thead>
@@ -1044,7 +1059,8 @@ function renderQty(data) {
   document.getElementById('empty-qty').style.display = data.length ? 'none' : '';
   const tbody = document.getElementById('qty-body');
   const tfoot = document.getElementById('qty-foot');
-  if (!data.length) { tbody.innerHTML=''; tfoot.innerHTML=''; return; }
+  const strip = document.getElementById('qty-totals');
+  if (!data.length) { tbody.innerHTML=''; tfoot.innerHTML=''; strip.innerHTML=''; return; }
   tbody.innerHTML = data.map(s => {
     const w = s.w;
     return `<tr>
@@ -1060,13 +1076,15 @@ function renderQty(data) {
   }).join('');
 
   // Overall weekly totals across the filtered stores (System / Physical / Diff)
-  tfoot.innerHTML = renderQtyTotals(data);
+  const tot = qtyTotals(data);
+  strip.innerHTML = qtyTotalsStrip(tot, data.length);
+  tfoot.innerHTML = qtyTotalsFoot(tot, data.length);
 }
 
 /* Sum System Qty, Physical Qty and Difference for each week across the
-   currently-filtered stores, and render a totals row in the table footer.
-   Only weeks that were actually counted contribute to the sum. */
-function renderQtyTotals(data) {
+   currently-filtered stores. Only weeks that were actually counted (have a
+   System Qty) contribute to the count/sum for that week. */
+function qtyTotals(data) {
   const tot = [0,1,2,3].map(() => ({ sy:0, ph:0, d:0, cnt:0 }));
   data.forEach(s => {
     s.w.forEach((w, i) => {
@@ -1075,20 +1093,52 @@ function renderQtyTotals(data) {
       if (w.d  !== null)  tot[i].d  += w.d;
     });
   });
-  const r1 = v => Math.round(v * 10) / 10;
+  return tot;
+}
+
+const _r1 = v => Math.round(v * 10) / 10;
+const _fmt = v => _r1(v).toLocaleString('en-IN');
+
+/* Prominent totals strip shown at the top of the Qty Details tab. */
+function qtyTotalsStrip(tot, nStores) {
+  return tot.map((t, i) => {
+    if (!t.cnt) {
+      return `<div class="qtc empty-wk">
+        <div class="qtc-wk">Week ${i+1}</div>
+        <div class="qtc-empty">Not counted</div>
+        <div class="qtc-sub">&nbsp;</div>
+      </div>`;
+    }
+    const diff = _r1(t.d);
+    const diffCls = diff < 0 ? 'qtc-diff-neg' : 'qtc-diff-ok';
+    const diffTxt = diff < 0 ? diff : (diff === 0 ? '0' : '+' + diff);
+    return `<div class="qtc">
+      <div class="qtc-wk">Week ${i+1} &bull; ${t.cnt} store${t.cnt!==1?'s':''}</div>
+      <div class="qtc-sys">${_fmt(t.sy)}</div>
+      <div class="qtc-sys-lbl">Total System Qty</div>
+      <div class="qtc-sub">
+        <span>Phy <b>${_fmt(t.ph)}</b></span>
+        <span>Diff <span class="${diffCls}">${diffTxt}</span></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* Matching totals row pinned in the table footer, aligned to the columns. */
+function qtyTotalsFoot(tot, nStores) {
   const cells = tot.map(t => {
     if (!t.cnt) {
       return `<td class="nodata">—</td><td class="nodata">—</td><td class="nodata">—</td>`;
     }
-    const diff = r1(t.d);
+    const diff = _r1(t.d);
     const diffCls = diff < 0 ? 'tot-diff-neg' : 'tot-diff-ok';
     const diffTxt = diff < 0 ? diff : (diff === 0 ? '0' : '+' + diff);
-    return `<td class="tot-sys">${r1(t.sy)}</td>` +
-           `<td class="tot-phy">${r1(t.ph)}</td>` +
+    return `<td class="tot-sys">${_fmt(t.sy)}</td>` +
+           `<td class="tot-phy">${_fmt(t.ph)}</td>` +
            `<td class="${diffCls}">${diffTxt}</td>`;
   }).join('');
   return `<tr>
-    <td class="L" colspan="4">Overall Total (${data.length} store${data.length!==1?'s':''})</td>
+    <td class="L" colspan="4">Overall Total (${nStores} store${nStores!==1?'s':''})</td>
     ${cells}
   </tr>`;
 }
