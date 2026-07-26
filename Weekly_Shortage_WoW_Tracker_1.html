@@ -170,6 +170,15 @@ tbody tr:last-child td { border-bottom: none; }
 .ldot { width: 10px; height: 10px; border-radius: 3px; }
 
 .empty { text-align: center; color: var(--mut); padding: 40px; }
+
+/* QTY TOTALS FOOTER */
+tfoot td { padding: 11px 10px; text-align: center; font-size: 12.5px; white-space: nowrap; border-top: 2px solid var(--navy-3); }
+tfoot tr { background: linear-gradient(120deg, #f3f5fb, #eef0f6); }
+tfoot td.L { text-align: left; font-weight: 800; color: var(--navy); text-transform: uppercase; letter-spacing: .5px; font-size: 11px; }
+tfoot td.tot-sys { font-weight: 800; color: var(--navy); }
+tfoot td.tot-phy { font-weight: 700; color: var(--ink-2); }
+tfoot td.tot-diff-neg { font-weight: 800; color: var(--red); }
+tfoot td.tot-diff-ok  { font-weight: 800; color: var(--green); }
 </style>
 </head>
 <body>
@@ -411,6 +420,7 @@ tbody tr:last-child td { border-bottom: none; }
           </tr>
         </thead>
         <tbody id="qty-body"></tbody>
+        <tfoot id="qty-foot"></tfoot>
       </table>
       <div class="empty" id="empty-qty" style="display:none">No stores match.</div>
     </div>
@@ -1033,7 +1043,8 @@ function renderQty(data) {
   document.getElementById('qty-cnt').textContent = data.length;
   document.getElementById('empty-qty').style.display = data.length ? 'none' : '';
   const tbody = document.getElementById('qty-body');
-  if (!data.length) { tbody.innerHTML=''; return; }
+  const tfoot = document.getElementById('qty-foot');
+  if (!data.length) { tbody.innerHTML=''; tfoot.innerHTML=''; return; }
   tbody.innerHTML = data.map(s => {
     const w = s.w;
     return `<tr>
@@ -1047,6 +1058,39 @@ function renderQty(data) {
       ${qtyTriple(w[3])}
     </tr>`;
   }).join('');
+
+  // Overall weekly totals across the filtered stores (System / Physical / Diff)
+  tfoot.innerHTML = renderQtyTotals(data);
+}
+
+/* Sum System Qty, Physical Qty and Difference for each week across the
+   currently-filtered stores, and render a totals row in the table footer.
+   Only weeks that were actually counted contribute to the sum. */
+function renderQtyTotals(data) {
+  const tot = [0,1,2,3].map(() => ({ sy:0, ph:0, d:0, cnt:0 }));
+  data.forEach(s => {
+    s.w.forEach((w, i) => {
+      if (w.sy !== null) { tot[i].sy += w.sy; tot[i].cnt++; }
+      if (w.ph !== null)  tot[i].ph += w.ph;
+      if (w.d  !== null)  tot[i].d  += w.d;
+    });
+  });
+  const r1 = v => Math.round(v * 10) / 10;
+  const cells = tot.map(t => {
+    if (!t.cnt) {
+      return `<td class="nodata">—</td><td class="nodata">—</td><td class="nodata">—</td>`;
+    }
+    const diff = r1(t.d);
+    const diffCls = diff < 0 ? 'tot-diff-neg' : 'tot-diff-ok';
+    const diffTxt = diff < 0 ? diff : (diff === 0 ? '0' : '+' + diff);
+    return `<td class="tot-sys">${r1(t.sy)}</td>` +
+           `<td class="tot-phy">${r1(t.ph)}</td>` +
+           `<td class="${diffCls}">${diffTxt}</td>`;
+  }).join('');
+  return `<tr>
+    <td class="L" colspan="4">Overall Total (${data.length} store${data.length!==1?'s':''})</td>
+    ${cells}
+  </tr>`;
 }
 
 /* ═══════════════════════════════════════
